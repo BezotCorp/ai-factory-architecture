@@ -1,4 +1,6 @@
 mod massive;
+mod adaptive;
+mod experimental;
 mod collective;
 
 use anyhow::{Context, Result};
@@ -23,6 +25,8 @@ fn main() -> Result<()> {
 
     match args.first().map(String::as_str) {
         Some("collective") => collective::run(root, &device),
+        Some("adaptive") => adaptive::run(root, &device),
+        Some("experimental") => experimental::run(root, &device),
         Some("train") => massive::train(root, &device),
         Some("predict") => massive::predict(root, &device),
         Some("compare") => massive::compare(root, &device),

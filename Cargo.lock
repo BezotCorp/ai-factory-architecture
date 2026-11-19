@@ -3,7 +3,25 @@
 version = 4
 
 [[package]]
+name = "agent-adaptive"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "candle-core",
+ "candle-nn",
+]
+
+[[package]]
 name = "agent-collective"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "candle-core",
+ "candle-nn",
+]
+
+[[package]]
+name = "agent-experimental"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -1485,7 +1503,9 @@ dependencies = [
 name = "laboratory"
 version = "0.1.0"
 dependencies = [
+ "agent-adaptive",
  "agent-collective",
+ "agent-experimental",
  "anyhow",
  "associative-circuits",
  "candle-core",

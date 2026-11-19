@@ -8,6 +8,8 @@ default = ["cuda"]
 cuda = ["candle-core/cuda"]
 
 [dependencies]
+agent-adaptive = { path = "../brains/agent-adaptive" }
+agent-experimental = { path = "../brains/agent-experimental" }
 anyhow = "1"
 associative-circuits = { path = "../brains/associative-circuits" }
 massive-loader = { path = "../datasets/massive/loader" }

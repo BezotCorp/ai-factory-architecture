@@ -6,4 +6,6 @@ members = [
   "brains/associative-circuits",
   "brains/agent-collective",
   "laboratory",
+  "brains/agent-adaptive",
+  "brains/agent-experimental",
 ]
