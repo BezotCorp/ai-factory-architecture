@@ -1,0 +1,11 @@
+(
+    cases: [
+        (input: "Mets une alarme demain à 8 heures", expected: Some("alarm_set")),
+        (input: "Quelle est la capitale du Portugal ?", expected: Some("qa_factoid")),
+        (input: "Je veux manger des fraises", expected: None),
+        (input: "j'ai envie de faire caca", expected: None),
+        (input: "j'ai envie de dormir", expected: None),
+        (input: "dormir", expected: None),
+        (input: "caca", expected: None),
+    ],
+)

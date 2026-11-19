@@ -1,0 +1,3 @@
+[workspace]
+resolver = "3"
+members = ["datasets/massive/loader", "datasets/massive/intents", "brains/associative-circuits", "experiments/associative-circuits"]

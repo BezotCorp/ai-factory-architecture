@@ -6,10 +6,7 @@ use parquet::record::Field;
 const BASE: &str =
     "https://huggingface.co/datasets/AmazonScience/massive/resolve/refs%2Fconvert%2Fparquet/fr-FR";
 
-fn load_split(
-    client: &reqwest::blocking::Client,
-    split: &str,
-) -> Result<Vec<Row>> {
+fn load_split(client: &reqwest::blocking::Client, split: &str) -> Result<Vec<Row>> {
     let url = format!("{BASE}/{split}/0000.parquet");
 
     println!("Loading {split} into RAM...");
@@ -63,7 +60,7 @@ fn load_split(
     Ok(examples)
 }
 
-pub(super) fn load() -> Result<Dataset> {
+pub fn load() -> Result<Dataset> {
     let client = reqwest::blocking::Client::builder()
         .user_agent("ai-factory-architecture/0.1")
         .build()?;
