@@ -1,9 +1,9 @@
 [package]
 name = "massive-intents"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 anyhow = "1"
-ron = "0.12.3"
+ron = "0.12"
 serde = { version = "1", features = ["derive"] }

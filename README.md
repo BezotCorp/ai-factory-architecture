@@ -35,3 +35,28 @@ No specific programming language, framework, architecture, or learning algorithm
 **Early research — architecture not yet defined.**
 
 This repository will document the project's design decisions, experiments, results, and limitations as research progresses.
+## Publishing the MASSIVE model
+
+The laboratory can prepare and publish its trained associative-circuits model
+without retraining. It uses `artifacts/associative-circuits/massive.safetensors`
+and `massive-labels.json`; keep these files together.
+
+Install the [Hugging Face CLI](https://huggingface.co/docs/huggingface_hub/en/guides/cli)
+and authenticate with `hf auth login` using an account with write access. First,
+prepare the files in a **new** directory and review the generated model card:
+
+```sh
+cargo run --no-default-features -p laboratory -- publish --prepare-only /tmp/massive-model-review
+```
+
+Edit the generated card as needed, then explicitly publish the reviewed directory:
+
+```sh
+cargo run --no-default-features -p laboratory -- publish YOUR_NAMESPACE/YOUR_MODEL --from /tmp/massive-model-review
+```
+
+The `hf upload` command may create the model repository if it does not exist.
+Check its visibility and your account permissions before publishing. Omit `--from` to publish a freshly prepared temporary copy of the current model.
+Neither mode modifies the local weights or labels.
+The generated card describes the current architecture; add verified evaluation
+results, usage details, licensing, and attribution as appropriate before sharing.

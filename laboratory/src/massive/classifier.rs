@@ -10,8 +10,10 @@ pub(super) struct MassiveClassifier {
 
 impl MassiveClassifier {
     pub(super) fn load(root: &Path, device: &Device) -> Result<Self> {
-        let base = root.join("artifacts/associative-circuits");
+        Self::load_files(&root.join("artifacts/associative-circuits"), device)
+    }
 
+    pub(super) fn load_files(base: &Path, device: &Device) -> Result<Self> {
         let labels: Vec<String> =
             serde_json::from_slice(&std::fs::read(base.join("massive-labels.json"))?)?;
 
@@ -28,11 +30,7 @@ impl massive_intents::Predictor for MassiveClassifier {
     }
 
     fn predict(&self, text: &str, limit: usize) -> Result<Vec<massive_intents::Prediction>> {
-        let input = Tensor::from_vec(
-            encode(text),
-            (1, FEATURES),
-            self.brain.device(),
-        )?;
+        let input = Tensor::from_vec(encode(text), (1, FEATURES), self.brain.device())?;
 
         let scores = self.brain.probabilities(&input)?;
 

@@ -1,0 +1,9 @@
+[package]
+name = "agent-collective"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+candle-core = "0.11.1"
+candle-nn = "0.11.1"
