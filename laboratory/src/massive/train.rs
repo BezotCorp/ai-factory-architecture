@@ -3,9 +3,8 @@ use super::{
     BATCH, EPOCHS,
 };
 use anyhow::Result;
-use associative_circuits::forward;
+use associative_circuits::Brain;
 use candle_core::Device;
-use candle_nn::{loss, AdamW, Optimizer, ParamsAdamW};
 use std::{collections::BTreeMap, path::Path};
 
 pub fn train(dir: &Path, device: &Device) -> Result<()> {
@@ -40,20 +39,12 @@ pub fn train(dir: &Path, device: &Device) -> Result<()> {
         labels.len()
     );
 
-    let (mut vars, keys, values) =
-        associative_circuits::setup(device, labels.len(), super::CIRCUITS)?;
-
-    let mut optimizer = AdamW::new(
-        vars.all_vars(),
-        ParamsAdamW {
-            lr: 0.003,
-            ..Default::default()
-        },
-    )?;
+    let mut brain = Brain::new(device, labels.len(), super::CIRCUITS)?;
+    let mut optimizer = brain.optimizer(0.003)?;
 
     let mut best = -1f32;
     let mut best_epoch = 0;
-    let weights = dir.join("target/massive.safetensors");
+    let weights = dir.join("artifacts/associative-circuits/massive.safetensors");
 
     for epoch in 1..=EPOCHS {
         let mut total_loss = 0f32;
@@ -62,16 +53,11 @@ pub fn train(dir: &Path, device: &Device) -> Result<()> {
         for chunk in train.chunks(BATCH) {
             let (inputs, targets) = batch(chunk, device)?;
 
-            let logits = forward(&inputs, &keys, &values)?;
-
-            let error = loss::cross_entropy(&logits, &targets)?;
-
-            total_loss += error.to_scalar::<f32>()?;
-            optimizer.backward_step(&error)?;
+            total_loss += brain.train_batch(&mut optimizer, &inputs, &targets)?;
             steps += 1;
         }
 
-        let score = accuracy(&validation, &keys, &values, device)?;
+        let score = accuracy(&validation, &brain, device)?;
 
         println!(
             "Epoch {epoch:02}/{EPOCHS} | loss {:.4} | validation {:.2}%",
@@ -82,23 +68,23 @@ pub fn train(dir: &Path, device: &Device) -> Result<()> {
         if score > best {
             best = score;
             best_epoch = epoch;
-            vars.save(&weights)?;
+            brain.save(&weights)?;
         }
     }
 
-    vars.load(&weights)?;
+    brain.load(&weights)?;
 
     println!("Best epoch: {best_epoch} | validation {best:.2}%");
 
     println!(
         "FINAL TEST: {:.2}%",
-        accuracy(&test, &keys, &values, device)?
+        accuracy(&test, &brain, device)?
     );
 
     let names: Vec<&str> = labels.keys().map(String::as_str).collect();
 
     std::fs::write(
-        dir.join("target/massive-labels.json"),
+        dir.join("artifacts/associative-circuits/massive-labels.json"),
         serde_json::to_vec_pretty(&names)?,
     )?;
 

@@ -1,6 +1,6 @@
 use super::{Example, BATCH};
 use anyhow::{Context, Result};
-use associative_circuits::{encode, forward, FEATURES};
+use associative_circuits::{encode, Brain, FEATURES};
 use candle_core::{Device, Tensor};
 use massive_loader::Row;
 use std::collections::BTreeMap;
@@ -33,8 +33,7 @@ pub(super) fn batch(rows: &[Example], device: &Device) -> Result<(Tensor, Tensor
 
 pub(super) fn accuracy(
     data: &[Example],
-    keys: &Tensor,
-    values: &Tensor,
+    brain: &Brain,
     device: &Device,
 ) -> Result<f32> {
     let mut correct = 0usize;
@@ -42,9 +41,7 @@ pub(super) fn accuracy(
     for chunk in data.chunks(BATCH) {
         let (inputs, _) = batch(chunk, device)?;
 
-        let predictions = forward(&inputs, keys, values)?
-            .argmax(1)?
-            .to_vec1::<u32>()?;
+        let predictions = brain.predict_batch(&inputs)?;
 
         correct += predictions
             .iter()
