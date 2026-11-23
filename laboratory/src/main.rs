@@ -1,7 +1,8 @@
-mod massive;
 mod adaptive;
-mod experimental;
 mod collective;
+mod experimental;
+mod instance;
+mod massive;
 
 use anyhow::{Context, Result};
 use candle_core::Device;
@@ -14,7 +15,21 @@ fn main() -> Result<()> {
         .context("Workspace root unavailable")?;
 
     if args.first().map(String::as_str) == Some("publish") {
-        return massive::publish(root, &args[1..]);
+        return instance::Instance::publish(root, &args[1..]);
+    }
+
+    if args.first().map(String::as_str) == Some("export") {
+        if args.len() != 3 {
+            anyhow::bail!("Usage: laboratory export <uuid> <destination>");
+        }
+        return instance::Instance::export(root, &args[1], Path::new(&args[2]));
+    }
+
+    if args.first().map(String::as_str) == Some("import") {
+        if args.len() != 2 {
+            anyhow::bail!("Usage: laboratory import <directory>");
+        }
+        return instance::Instance::import(root, Path::new(&args[1]));
     }
 
     let device = if std::env::var_os("AI_FACTORY_CPU").is_some() {
@@ -24,12 +39,12 @@ fn main() -> Result<()> {
     };
 
     match args.first().map(String::as_str) {
-        Some("collective") => collective::run(root, &device),
-        Some("adaptive") => adaptive::run(root, &device),
-        Some("experimental") => experimental::run(root, &device),
-        Some("train") => massive::train(root, &device),
-        Some("predict") => massive::predict(root, &device),
-        Some("compare") => massive::compare(root, &device),
+        Some("collective") => collective::run_collective(root, &device),
+        Some("adaptive") => adaptive::run_adaptive(root, &device),
+        Some("experimental") => experimental::run_experimental(root, &device),
+        Some("train") => massive::train_massive(root, &device),
+        Some("predict") => massive::predict_massive(root, &device),
+        Some("compare") => massive::compare_massive(root, &device, args.get(1).map(String::as_str)),
         _ => anyhow::bail!("Usage: laboratory [train|predict|compare|publish]"),
     }
 }

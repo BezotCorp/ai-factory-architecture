@@ -1,1 +1,1 @@
-pub(super) use associative_circuits::encode;
+pub(in crate::experimental) use associative_circuits::encode;

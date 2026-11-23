@@ -1,5 +1,5 @@
-use super::{classifier::MassiveClassifier, CIRCUITS};
-use anyhow::{bail, Context, Result};
+use crate::massive::{classifier::MassiveClassifier, config::CIRCUITS};
+use anyhow::{Context, Result, bail};
 use associative_circuits::FEATURES;
 use candle_core::Device;
 use std::{fs, path::Path, process::Command};
@@ -52,7 +52,7 @@ Predictions outside the training domain can be unreliable. No evaluation
 metrics are included here because they are not stored with the model files.
 "#;
 
-fn prepare(root: &Path, destination: &Path) -> Result<()> {
+fn prepare_massive(root: &Path, destination: &Path) -> Result<()> {
     let source = root.join("artifacts/associative-circuits");
     // Verify that the exact existing weights and labels can be loaded together.
     MassiveClassifier::load(root, &Device::Cpu).context("Cannot load model and labels")?;
@@ -91,11 +91,11 @@ fn upload(repo: &str, directory: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn run(root: &Path, args: &[String]) -> Result<()> {
+pub(crate) fn run_massive(root: &Path, args: &[String]) -> Result<()> {
     match args {
         [option, path] if option == "--prepare-only" => {
             let destination = Path::new(path);
-            prepare(root, destination)?;
+            prepare_massive(root, destination)?;
             println!("Publication files prepared in {}", destination.display());
             Ok(())
         }
@@ -103,7 +103,7 @@ pub fn run(root: &Path, args: &[String]) -> Result<()> {
         [repo] => {
             let temporary = tempfile::tempdir().context("Cannot create temporary directory")?;
             let destination = temporary.path().join("model");
-            prepare(root, &destination)?;
+            prepare_massive(root, &destination)?;
             upload(repo, &destination)
         }
         _ => bail!(

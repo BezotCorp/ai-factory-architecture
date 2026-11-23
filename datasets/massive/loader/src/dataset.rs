@@ -1,4 +1,4 @@
-use super::Row;
+use crate::Row;
 use serde::Deserialize;
 
 #[derive(Deserialize)]

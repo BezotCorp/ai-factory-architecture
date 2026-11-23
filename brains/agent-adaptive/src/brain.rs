@@ -1,13 +1,11 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use candle_core::{DType, Device, Tensor};
 use candle_nn::{Init, VarBuilder, VarMap};
 use std::path::Path;
 
 use crate::{
-    agent::Agent,
-    calculator::Calculator,
+    AGENTS, FEATURES, MAX_MODEL_BYTES, UNITS, agent::Agent, calculator::Calculator,
     teacher::Teacher,
-    AGENTS, FEATURES, MAX_MODEL_BYTES, UNITS,
 };
 
 pub struct Brain {
@@ -17,22 +15,14 @@ pub struct Brain {
 
 impl Brain {
     pub fn new(device: &Device, classes: usize) -> Result<Self> {
-        let bytes = (
-            AGENTS * (
-                FEATURES * UNITS
-                + UNITS * classes
-                + UNITS
-            ) * 4
-        ) as u64;
+        let bytes = (AGENTS * (FEATURES * UNITS + UNITS * classes + UNITS) * 4) as u64;
 
         if bytes > MAX_MODEL_BYTES {
             bail!("Parameter budget exceeded: {bytes}");
         }
 
         let variables = VarMap::new();
-        let builder = VarBuilder::from_varmap(
-            &variables, DType::F32, device
-        );
+        let builder = VarBuilder::from_varmap(&variables, DType::F32, device);
 
         let mut agents = Vec::with_capacity(AGENTS);
 
@@ -61,12 +51,7 @@ impl Brain {
                 Init::Const(1.0),
             )?;
 
-            agents.push(Agent {
-                input,
-                output,
-                memory,
-                index,
-            });
+            agents.push(Agent::new(input, output, memory, index));
         }
 
         Ok(Self { variables, agents })
@@ -77,11 +62,11 @@ impl Brain {
     }
 
     pub fn forward(&self, inputs: &Tensor) -> Result<Tensor> {
-        let mut outputs = self.agents.iter()
-            .map(|agent| agent.forward(inputs));
+        let mut outputs = self.agents.iter().map(|agent| agent.forward(inputs));
 
-        let mut sum = outputs.next()
-            .expect("At least one agent")?;
+        let mut sum = outputs
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("No adaptive agents"))??;
 
         for output in outputs {
             sum = (&sum + &output?)?;
@@ -90,12 +75,7 @@ impl Brain {
         Ok(sum.affine(1.0 / AGENTS as f64, 0.0)?)
     }
 
-    pub fn train_batch(
-        &self,
-        inputs: &Tensor,
-        targets: &Tensor,
-        rate: f64,
-    ) -> Result<f32> {
+    pub fn train_batch(&self, inputs: &Tensor, targets: &Tensor, rate: f64) -> Result<f32> {
         let before_logits = self.forward(inputs)?;
         let before = Calculator::error(&before_logits, targets)?;
 
@@ -112,29 +92,17 @@ impl Brain {
         let after = Calculator::error(&after_logits, targets)?;
         let reward = Calculator::reward(before, after);
 
-        Teacher::remember(
-            &self.variables,
-            &self.agents,
-            &importances,
-            reward,
-        )?;
+        Teacher::remember(&self.variables, &self.agents, &importances, reward)?;
 
         Ok(after)
     }
 
     pub fn predictions(&self, inputs: &Tensor) -> Result<Vec<u32>> {
-        Ok(self.forward(inputs)?
-            .argmax(1)?
-            .to_vec1::<u32>()?)
+        Ok(self.forward(inputs)?.argmax(1)?.to_vec1::<u32>()?)
     }
 
-    pub fn probabilities(
-        &self,
-        inputs: &Tensor,
-    ) -> Result<Vec<Vec<f32>>> {
-        Ok(candle_nn::ops::softmax(
-            &self.forward(inputs)?, 1
-        )?.to_vec2::<f32>()?)
+    pub fn probabilities(&self, inputs: &Tensor) -> Result<Vec<Vec<f32>>> {
+        Ok(candle_nn::ops::softmax(&self.forward(inputs)?, 1)?.to_vec2::<f32>()?)
     }
 
     pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {

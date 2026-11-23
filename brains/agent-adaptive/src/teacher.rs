@@ -4,10 +4,10 @@ use candle_nn::VarMap;
 
 use crate::{agent::Agent, calculator::Calculator};
 
-pub(super) struct Teacher;
+pub(crate) struct Teacher;
 
 impl Teacher {
-    pub(super) fn teach(
+    pub(crate) fn teach(
         variables: &VarMap,
         agents: &[Agent],
         inputs: &Tensor,
@@ -19,14 +19,13 @@ impl Teacher {
 
         // Tous les agents reçoivent un enseignement.
         // Chaque agent calcule et applique ses propres mises à jour.
-        agents.iter()
-            .map(|agent| {
-                agent.learn(variables, inputs, &signal, rate)
-            })
+        agents
+            .iter()
+            .map(|agent| agent.learn(variables, inputs, &signal, rate))
             .collect()
     }
 
-    pub(super) fn remember(
+    pub(crate) fn remember(
         variables: &VarMap,
         agents: &[Agent],
         importances: &[Vec<f32>],

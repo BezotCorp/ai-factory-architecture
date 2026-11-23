@@ -1,28 +1,27 @@
-use super::{example::Example, BATCH, EPOCHS};
-use agent_collective::{Brain, Strategy, FEATURES};
+use crate::collective::{
+    config::{BATCH, EPOCHS},
+    example::Example,
+};
+use crate::instance::Instance;
+use agent_collective::{Brain, FEATURES, Strategy};
 use anyhow::{Context, Result};
 use associative_circuits::encode;
 use candle_core::{Device, Tensor};
 use massive_loader::Row;
 use std::{collections::BTreeMap, path::Path};
 
-fn encode_rows(
-    rows: &[Row],
-    labels: &BTreeMap<String, u32>,
-) -> Result<Vec<Example>> {
+fn encode_rows(rows: &[Row], labels: &BTreeMap<String, u32>) -> Result<Vec<Example>> {
     rows.iter()
-        .map(|row| Ok(Example {
-            features: encode(&row.text),
-            target: *labels.get(&row.intent)
-                .context("Unknown intent")?,
-        }))
+        .map(|row| {
+            Ok(Example {
+                features: encode(&row.text),
+                target: *labels.get(&row.intent).context("Unknown intent")?,
+            })
+        })
         .collect()
 }
 
-fn batch(
-    rows: &[Example],
-    device: &Device,
-) -> Result<(Tensor, Tensor)> {
+fn batch(rows: &[Example], device: &Device) -> Result<(Tensor, Tensor)> {
     let mut inputs = Vec::with_capacity(rows.len() * FEATURES);
     let mut targets = Vec::with_capacity(rows.len());
 
@@ -37,18 +36,15 @@ fn batch(
     ))
 }
 
-fn accuracy(
-    data: &[Example],
-    brain: &Brain,
-    device: &Device,
-) -> Result<f32> {
+fn accuracy(data: &[Example], brain: &Brain, device: &Device) -> Result<f32> {
     let mut correct = 0usize;
 
     for chunk in data.chunks(BATCH) {
         let (inputs, _) = batch(chunk, device)?;
         let predictions = brain.predictions(&inputs)?;
 
-        correct += predictions.iter()
+        correct += predictions
+            .iter()
             .zip(chunk.iter())
             .filter(|(prediction, row)| **prediction == row.target)
             .count();
@@ -57,15 +53,13 @@ fn accuracy(
     Ok(100.0 * correct as f32 / data.len() as f32)
 }
 
-pub fn train(
-    root: &Path,
-    device: &Device,
-    strategy: Strategy,
-) -> Result<()> {
+pub(in crate::collective) fn train(root: &Path, device: &Device, strategy: Strategy) -> Result<()> {
     let dataset = massive_loader::load()?;
     let mut labels = BTreeMap::new();
 
-    for row in dataset.train.iter()
+    for row in dataset
+        .train
+        .iter()
         .chain(&dataset.validation)
         .chain(&dataset.test)
     {
@@ -81,18 +75,23 @@ pub fn train(
     let test = encode_rows(&dataset.test, &labels)?;
     drop(dataset);
 
-    let directory = root.join("artifacts").join(
-        format!("agent-collective-{}", strategy.name())
-    );
+    let mut instance = Instance::create(
+        root,
+        "agent-collective",
+        Some(strategy.name()),
+        serde_json::json!({
+            "classes": labels.len(),
+            "features": FEATURES,
+            "agents": agent_collective::AGENTS,
+            "units": agent_collective::UNITS,
+            "epochs": EPOCHS,
+            "batch": BATCH,
+            "learning_rate": 0.003
+        }),
+    )?;
 
-    let weights = directory.join("massive.safetensors");
-    let label_file = directory.join("massive-labels.json");
-
-    if weights.exists() || label_file.exists() {
-        anyhow::bail!("Model already exists: {}", directory.display());
-    }
-
-    std::fs::create_dir_all(&directory)?;
+    let label_file = instance.labels();
+    let mut best_weights = None;
 
     let brain = Brain::new(device, labels.len())?;
     let mut optimizer = brain.optimizer(0.003)?;
@@ -111,9 +110,7 @@ pub fn train(
             total += if matches!(strategy, Strategy::Local) {
                 brain.learn_locally(&inputs, &targets, 0.003)?
             } else {
-                brain.train_batch(
-                    &mut optimizer, &inputs, &targets, strategy,
-                )?
+                brain.train_batch(&mut optimizer, &inputs, &targets, strategy)?
             };
             steps += 1;
         }
@@ -129,35 +126,29 @@ pub fn train(
             best = score;
             best_epoch = epoch;
 
-            // Un meilleur modèle remplace seulement le checkpoint
-            // de cette session d'entraînement.
-            if weights.exists() {
-                std::fs::remove_file(&weights)?;
-            }
-            brain.save(&weights)?;
+            let checkpoint = instance.checkpoint(epoch);
+            brain.save(&checkpoint)?;
+            instance.record(epoch, &checkpoint, score)?;
+            best_weights = Some(checkpoint);
         }
     }
 
     let mut brain = brain;
+    let weights = best_weights.ok_or_else(|| anyhow::anyhow!("No best checkpoint"))?;
     brain.load(&weights)?;
+    let test_score = accuracy(&test, &brain, device)?;
 
     println!(
         "Best epoch {best_epoch} | validation {best:.2}% | test {:.2}%",
-        accuracy(&test, &brain, device)?
+        test_score
     );
 
-    let names: Vec<&str> =
-        labels.keys().map(String::as_str).collect();
+    let names: Vec<&str> = labels.keys().map(String::as_str).collect();
 
-    std::fs::write(
-        &label_file,
-        serde_json::to_vec_pretty(&names)?,
-    )?;
+    std::fs::write(&label_file, serde_json::to_vec_pretty(&names)?)?;
 
-    println!(
-        "Weights: {} bytes",
-        std::fs::metadata(&weights)?.len()
-    );
+    println!("Weights: {} bytes", std::fs::metadata(&weights)?.len());
+    instance.finish(best_epoch, best, test_score)?;
 
     Ok(())
 }

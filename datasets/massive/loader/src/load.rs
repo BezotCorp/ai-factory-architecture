@@ -1,5 +1,5 @@
-use super::{Dataset, Row};
-use anyhow::{bail, Context, Result};
+use crate::{Dataset, Row};
+use anyhow::{Context, Result, bail};
 use parquet::file::reader::{FileReader, SerializedFileReader};
 use parquet::record::Field;
 

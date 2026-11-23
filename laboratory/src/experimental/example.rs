@@ -1,4 +1,4 @@
-pub(super) struct Example {
-    pub(super) features: Vec<f32>,
-    pub(super) target: u32,
+pub(in crate::experimental) struct Example {
+    pub(in crate::experimental) features: Vec<f32>,
+    pub(in crate::experimental) target: u32,
 }

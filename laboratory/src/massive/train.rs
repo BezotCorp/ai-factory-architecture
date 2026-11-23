@@ -1,13 +1,14 @@
-use super::{
+use crate::instance::Instance;
+use crate::massive::{
+    config::{BATCH, EPOCHS},
     training_data::{accuracy, batch, encode_rows},
-    BATCH, EPOCHS,
 };
 use anyhow::Result;
 use associative_circuits::Brain;
 use candle_core::Device;
 use std::{collections::BTreeMap, path::Path};
 
-pub fn train(dir: &Path, device: &Device) -> Result<()> {
+pub(crate) fn train_massive(dir: &Path, device: &Device) -> Result<()> {
     let dataset = massive_loader::load()?;
 
     let mut labels = BTreeMap::new();
@@ -39,12 +40,26 @@ pub fn train(dir: &Path, device: &Device) -> Result<()> {
         labels.len()
     );
 
-    let mut brain = Brain::new(device, labels.len(), super::CIRCUITS)?;
+    let mut instance = Instance::create(
+        dir,
+        "associative-circuits",
+        None,
+        serde_json::json!({
+            "classes": labels.len(),
+            "features": associative_circuits::FEATURES,
+            "circuits": crate::massive::config::CIRCUITS,
+            "epochs": EPOCHS,
+            "batch": BATCH,
+            "learning_rate": 0.003
+        }),
+    )?;
+
+    let mut brain = Brain::new(device, labels.len(), crate::massive::config::CIRCUITS)?;
     let mut optimizer = brain.optimizer(0.003)?;
 
     let mut best = -1f32;
     let mut best_epoch = 0;
-    let weights = dir.join("artifacts/associative-circuits/massive.safetensors");
+    let mut best_weights = None;
 
     for epoch in 1..=EPOCHS {
         let mut total_loss = 0f32;
@@ -68,30 +83,30 @@ pub fn train(dir: &Path, device: &Device) -> Result<()> {
         if score > best {
             best = score;
             best_epoch = epoch;
-            brain.save(&weights)?;
+            let checkpoint = instance.checkpoint(epoch);
+            brain.save(&checkpoint)?;
+            instance.record(epoch, &checkpoint, score)?;
+            best_weights = Some(checkpoint);
         }
     }
 
+    let weights = best_weights.ok_or_else(|| anyhow::anyhow!("No best checkpoint"))?;
     brain.load(&weights)?;
+    let test_score = accuracy(&test, &brain, device)?;
 
     println!("Best epoch: {best_epoch} | validation {best:.2}%");
 
-    println!(
-        "FINAL TEST: {:.2}%",
-        accuracy(&test, &brain, device)?
-    );
+    println!("FINAL TEST: {:.2}%", test_score);
 
     let names: Vec<&str> = labels.keys().map(String::as_str).collect();
 
-    std::fs::write(
-        dir.join("artifacts/associative-circuits/massive-labels.json"),
-        serde_json::to_vec_pretty(&names)?,
-    )?;
+    std::fs::write(instance.labels(), serde_json::to_vec_pretty(&names)?)?;
 
     println!(
         "Model weights: {} bytes",
         std::fs::metadata(&weights)?.len()
     );
+    instance.finish(best_epoch, best, test_score)?;
 
     Ok(())
 }

@@ -1,24 +1,35 @@
+use crate::instance::Instance;
 use anyhow::Result;
-use associative_circuits::{encode, Brain, FEATURES};
+use associative_circuits::{Brain, FEATURES, encode};
 use candle_core::{Device, Tensor};
 use std::path::Path;
 
-pub(super) struct MassiveClassifier {
+pub(in crate::massive) struct MassiveClassifier {
     brain: Brain,
     labels: Vec<String>,
 }
 
 impl MassiveClassifier {
-    pub(super) fn load(root: &Path, device: &Device) -> Result<Self> {
+    pub(in crate::massive) fn load(root: &Path, device: &Device) -> Result<Self> {
         Self::load_files(&root.join("artifacts/associative-circuits"), device)
     }
 
-    pub(super) fn load_files(base: &Path, device: &Device) -> Result<Self> {
+    pub(in crate::massive) fn load_instance(
+        root: &Path,
+        device: &Device,
+        id: Option<&str>,
+    ) -> Result<Self> {
+        let directory = Instance::resolve(root, "associative-circuits", None, id)?;
+
+        Self::load_files(&directory, device)
+    }
+
+    pub(in crate::massive) fn load_files(base: &Path, device: &Device) -> Result<Self> {
         let labels: Vec<String> =
             serde_json::from_slice(&std::fs::read(base.join("massive-labels.json"))?)?;
 
-        let mut brain = Brain::new(device, labels.len(), super::CIRCUITS)?;
-        brain.load(base.join("massive.safetensors"))?;
+        let mut brain = Brain::new(device, labels.len(), crate::massive::config::CIRCUITS)?;
+        brain.load(Instance::weights(base)?)?;
 
         Ok(Self { brain, labels })
     }

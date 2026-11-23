@@ -1,4 +1,4 @@
-use super::classifier::MassiveClassifier;
+use crate::massive::classifier::MassiveClassifier;
 use anyhow::Result;
 use candle_core::Device;
 use massive_intents::Predictor;
@@ -7,7 +7,7 @@ use std::{
     path::Path,
 };
 
-pub fn predict(root: &Path, device: &Device) -> Result<()> {
+pub(crate) fn predict_massive(root: &Path, device: &Device) -> Result<()> {
     let classifier = MassiveClassifier::load(root, device)?;
 
     println!("Écris une phrase (vide pour quitter) :");
@@ -25,11 +25,7 @@ pub fn predict(root: &Path, device: &Device) -> Result<()> {
         }
 
         for result in classifier.predict(&line, 3)? {
-            println!(
-                "  {:>6.2}%  {}",
-                result.score * 100.0,
-                result.intent
-            );
+            println!("  {:>6.2}%  {}", result.score * 100.0, result.intent);
         }
     }
 

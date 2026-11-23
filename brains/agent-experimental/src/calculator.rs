@@ -1,20 +1,13 @@
 use candle_core::{DType, Tensor};
 
-pub(super) struct Calculator;
+pub(crate) struct Calculator;
 
 impl Calculator {
-    pub(super) fn error(
-        logits: &Tensor,
-        targets: &Tensor,
-    ) -> candle_core::Result<f32> {
-        candle_nn::loss::cross_entropy(logits, targets)?
-            .to_scalar::<f32>()
+    pub(crate) fn error(logits: &Tensor, targets: &Tensor) -> candle_core::Result<f32> {
+        candle_nn::loss::cross_entropy(logits, targets)?.to_scalar::<f32>()
     }
 
-    pub(super) fn expected(
-        logits: &Tensor,
-        targets: &Tensor,
-    ) -> candle_core::Result<Tensor> {
+    pub(crate) fn expected(logits: &Tensor, targets: &Tensor) -> candle_core::Result<Tensor> {
         let classes = logits.dim(1)?;
         let labels = targets.to_vec1::<u32>()?;
         let mut values = vec![0f32; labels.len() * classes];
@@ -27,17 +20,10 @@ impl Calculator {
             values[row * classes + column] = 1.0;
         }
 
-        Tensor::from_vec(
-            values,
-            (targets.dim(0)?, classes),
-            logits.device(),
-        )
+        Tensor::from_vec(values, (targets.dim(0)?, classes), logits.device())
     }
 
-    pub(super) fn local_errors(
-        logits: &Tensor,
-        expected: &Tensor,
-    ) -> candle_core::Result<Tensor> {
+    pub(crate) fn local_errors(logits: &Tensor, expected: &Tensor) -> candle_core::Result<Tensor> {
         let probability = candle_nn::ops::softmax(logits, 1)?;
         let correct_probability = probability.mul(expected)?.sum(1)?;
 
@@ -47,10 +33,7 @@ impl Calculator {
             .affine(-1.0, 0.0)
     }
 
-    pub(super) fn residual(
-        logits: &Tensor,
-        expected: &Tensor,
-    ) -> candle_core::Result<Tensor> {
+    pub(crate) fn residual(logits: &Tensor, expected: &Tensor) -> candle_core::Result<Tensor> {
         expected - &candle_nn::ops::softmax(logits, 1)?
     }
 
@@ -59,7 +42,7 @@ impl Calculator {
     // sur l'erreur de chaque exemple ?
     //
     // Aucun appel à backward() ni au moteur autograd.
-    pub(super) fn direction(
+    pub(crate) fn direction(
         logits: &Tensor,
         expected: &Tensor,
         outgoing: &Tensor,
@@ -67,10 +50,7 @@ impl Calculator {
     ) -> candle_core::Result<Tensor> {
         const STEP: f64 = 0.1;
 
-        let change = outgoing.affine(
-            STEP / total_agents as f64,
-            0.0,
-        )?;
+        let change = outgoing.affine(STEP / total_agents as f64, 0.0)?;
 
         let plus = logits.broadcast_add(&change)?;
         let minus = logits.broadcast_sub(&change)?;

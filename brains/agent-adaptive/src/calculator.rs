@@ -1,20 +1,13 @@
 use candle_core::Tensor;
 
-pub(super) struct Calculator;
+pub(crate) struct Calculator;
 
 impl Calculator {
-    pub(super) fn error(
-        logits: &Tensor,
-        targets: &Tensor,
-    ) -> candle_core::Result<f32> {
-        candle_nn::loss::cross_entropy(logits, targets)?
-            .to_scalar::<f32>()
+    pub(crate) fn error(logits: &Tensor, targets: &Tensor) -> candle_core::Result<f32> {
+        candle_nn::loss::cross_entropy(logits, targets)?.to_scalar::<f32>()
     }
 
-    pub(super) fn signal(
-        logits: &Tensor,
-        targets: &Tensor,
-    ) -> candle_core::Result<Tensor> {
+    pub(crate) fn signal(logits: &Tensor, targets: &Tensor) -> candle_core::Result<Tensor> {
         let classes = logits.dim(1)?;
         let labels = targets.to_vec1::<u32>()?;
         let mut expected = vec![0f32; labels.len() * classes];
@@ -27,19 +20,14 @@ impl Calculator {
             expected[row * classes + index] = 1.0;
         }
 
-        let expected = Tensor::from_vec(
-            expected,
-            (labels.len(), classes),
-            logits.device(),
-        )?;
+        let expected = Tensor::from_vec(expected, (labels.len(), classes), logits.device())?;
 
-        let probabilities =
-            candle_nn::ops::softmax(logits, 1)?;
+        let probabilities = candle_nn::ops::softmax(logits, 1)?;
 
         &expected - &probabilities
     }
 
-    pub(super) fn reward(before: f32, after: f32) -> f32 {
+    pub(crate) fn reward(before: f32, after: f32) -> f32 {
         if before <= 0.0 {
             return 0.0;
         }

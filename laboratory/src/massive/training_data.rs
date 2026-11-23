@@ -1,11 +1,14 @@
-use super::{Example, BATCH};
+use crate::massive::{config::BATCH, example::Example};
 use anyhow::{Context, Result};
-use associative_circuits::{encode, Brain, FEATURES};
+use associative_circuits::{Brain, FEATURES, encode};
 use candle_core::{Device, Tensor};
 use massive_loader::Row;
 use std::collections::BTreeMap;
 
-pub(super) fn encode_rows(rows: &[Row], labels: &BTreeMap<String, u32>) -> Result<Vec<Example>> {
+pub(in crate::massive) fn encode_rows(
+    rows: &[Row],
+    labels: &BTreeMap<String, u32>,
+) -> Result<Vec<Example>> {
     rows.iter()
         .map(|row| {
             Ok(Example {
@@ -16,7 +19,7 @@ pub(super) fn encode_rows(rows: &[Row], labels: &BTreeMap<String, u32>) -> Resul
         .collect()
 }
 
-pub(super) fn batch(rows: &[Example], device: &Device) -> Result<(Tensor, Tensor)> {
+pub(in crate::massive) fn batch(rows: &[Example], device: &Device) -> Result<(Tensor, Tensor)> {
     let mut inputs = Vec::with_capacity(rows.len() * FEATURES);
     let mut targets = Vec::with_capacity(rows.len());
 
@@ -31,7 +34,7 @@ pub(super) fn batch(rows: &[Example], device: &Device) -> Result<(Tensor, Tensor
     ))
 }
 
-pub(super) fn accuracy(
+pub(in crate::massive) fn accuracy(
     data: &[Example],
     brain: &Brain,
     device: &Device,

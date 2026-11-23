@@ -1,6 +1,6 @@
 use anyhow::Result;
 use candle_core::{DType, Device, Tensor};
-use candle_nn::{loss, AdamW, Init, Optimizer, ParamsAdamW, VarBuilder, VarMap};
+use candle_nn::{AdamW, Init, Optimizer, ParamsAdamW, VarBuilder, VarMap, loss};
 
 use crate::FEATURES;
 
@@ -72,10 +72,7 @@ impl Brain {
     }
 
     pub fn probabilities(&self, inputs: &Tensor) -> Result<Vec<Vec<f32>>> {
-        Ok(
-            candle_nn::ops::softmax(&self.forward(inputs)?, 1)?
-                .to_vec2::<f32>()?
-        )
+        Ok(candle_nn::ops::softmax(&self.forward(inputs)?, 1)?.to_vec2::<f32>()?)
     }
 
     pub fn save(&self, path: impl AsRef<std::path::Path>) -> Result<()> {

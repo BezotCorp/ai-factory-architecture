@@ -1,17 +1,12 @@
-use crate::{
-    error_calculator::ErrorCalculator,
-    expert::Expert,
-    teacher::Teacher,
-    Strategy, AGENTS, FEATURES, UNITS, MAX_MODEL_BYTES,
-};
-use anyhow::{bail, Result};
-use candle_core::{DType, Device, Tensor};
-use candle_nn::{
-    AdamW, Init, Optimizer, ParamsAdamW,
-    VarBuilder, VarMap,
-};
-use std::path::Path;
 use crate::local_teacher::LocalTeacher;
+use crate::{
+    AGENTS, FEATURES, MAX_MODEL_BYTES, Strategy, UNITS, error_calculator::ErrorCalculator,
+    expert::Expert, teacher::Teacher,
+};
+use anyhow::{Result, bail};
+use candle_core::{DType, Device, Tensor};
+use candle_nn::{AdamW, Init, Optimizer, ParamsAdamW, VarBuilder, VarMap};
+use std::path::Path;
 
 pub struct Brain {
     vars: VarMap,
@@ -20,18 +15,14 @@ pub struct Brain {
 
 impl Brain {
     pub fn new(device: &Device, classes: usize) -> Result<Self> {
-        let bytes = (AGENTS * (
-            FEATURES * UNITS + UNITS * classes
-        ) * 4) as u64;
+        let bytes = (AGENTS * (FEATURES * UNITS + UNITS * classes) * 4) as u64;
 
         if bytes > MAX_MODEL_BYTES {
             bail!("Parameter budget exceeded: {bytes} bytes");
         }
 
         let vars = VarMap::new();
-        let builder = VarBuilder::from_varmap(
-            &vars, DType::F32, device,
-        );
+        let builder = VarBuilder::from_varmap(&vars, DType::F32, device);
 
         let mut experts = Vec::with_capacity(AGENTS);
 
@@ -65,14 +56,18 @@ impl Brain {
     }
 
     fn outputs(&self, inputs: &Tensor) -> Result<Vec<Tensor>> {
-        Ok(self.experts.iter()
+        Ok(self
+            .experts
+            .iter()
             .map(|expert| expert.forward(inputs))
             .collect::<candle_core::Result<Vec<_>>>()?)
     }
 
     pub fn forward(&self, inputs: &Tensor) -> Result<Tensor> {
         let mut outputs = self.outputs(inputs)?.into_iter();
-        let mut result = outputs.next().expect("No experts");
+        let mut result = outputs
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("No experts"))?;
 
         for output in outputs {
             result = (&result + &output)?;
@@ -98,11 +93,10 @@ impl Brain {
         targets: &Tensor,
         strategy: Strategy,
     ) -> Result<f32> {
-        let losses = self.outputs(inputs)?
+        let losses = self
+            .outputs(inputs)?
             .iter()
-            .map(|logits| {
-                ErrorCalculator::measure(logits, targets)
-            })
+            .map(|logits| ErrorCalculator::measure(logits, targets))
             .collect::<candle_core::Result<Vec<_>>>()?;
 
         let lesson = Teacher::lesson(&losses, strategy)?;
@@ -110,7 +104,6 @@ impl Brain {
         optimizer.backward_step(&lesson)?;
         Ok(value)
     }
-
 
     pub fn learn_locally(
         &self,
@@ -131,18 +124,11 @@ impl Brain {
     }
 
     pub fn predictions(&self, inputs: &Tensor) -> Result<Vec<u32>> {
-        Ok(self.forward(inputs)?
-            .argmax(1)?
-            .to_vec1::<u32>()?)
+        Ok(self.forward(inputs)?.argmax(1)?.to_vec1::<u32>()?)
     }
 
-    pub fn probabilities(
-        &self,
-        inputs: &Tensor,
-    ) -> Result<Vec<Vec<f32>>> {
-        Ok(candle_nn::ops::softmax(
-            &self.forward(inputs)?, 1,
-        )?.to_vec2::<f32>()?)
+    pub fn probabilities(&self, inputs: &Tensor) -> Result<Vec<Vec<f32>>> {
+        Ok(candle_nn::ops::softmax(&self.forward(inputs)?, 1)?.to_vec2::<f32>()?)
     }
 
     pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
